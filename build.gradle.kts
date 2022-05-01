@@ -34,6 +34,12 @@ dependencies {
     implementation("io.ktor:ktor-server-netty-jvm:$ktor_version")
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.6.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.6.1")
+
+    implementation("io.projectreactor:reactor-core:3.4.17")
+    implementation("io.projectreactor.kotlin:reactor-kotlin-extensions:1.1.6")
+
     implementation("com.expediagroup:graphql-kotlin-server:$graphql_kotlin_version")
     implementation("com.expediagroup:graphql-kotlin-schema-generator:$graphql_kotlin_version")
 //    implementation("com.expediagroup:graphql-kotlin-dataloader:$graphql_kotlin_version")

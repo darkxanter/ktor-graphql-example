@@ -5,6 +5,7 @@ import com.expediagroup.graphql.generator.TopLevelObject
 import com.expediagroup.graphql.generator.toSchema
 import dev.xanter.schema.HelloQueryService
 import dev.xanter.schema.LoginMutationService
+import dev.xanter.schema.SimpleSubscription
 import graphql.GraphQL
 
 /**
@@ -20,6 +21,10 @@ private val queries = listOf(
 //    TopLevelObject(UniversityQueryService())
 )
 private val mutations = listOf(TopLevelObject(LoginMutationService()))
-private val graphQLSchema = toSchema(config, queries, mutations)
+private val subscriptions = listOf(
+    TopLevelObject(SimpleSubscription())
+)
+
+private val graphQLSchema = toSchema(config, queries, mutations, subscriptions)
 
 fun getGraphQLObject(): GraphQL = GraphQL.newGraphQL(graphQLSchema).build()
