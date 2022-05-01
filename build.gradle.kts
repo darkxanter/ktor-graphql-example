@@ -8,6 +8,7 @@ val graphql_kotlin_version: String by project
 plugins {
     application
     kotlin("jvm") version "1.6.21"
+    id("com.expediagroup.graphql") version "5.3.2"
 }
 
 group = "dev.xanter"
@@ -22,6 +23,12 @@ application {
 
 repositories {
     mavenCentral()
+}
+
+graphql {
+    schema {
+        packages = listOf("dev.xanter")
+    }
 }
 
 dependencies {
@@ -42,9 +49,17 @@ dependencies {
 
     implementation("com.expediagroup:graphql-kotlin-server:$graphql_kotlin_version")
     implementation("com.expediagroup:graphql-kotlin-schema-generator:$graphql_kotlin_version")
+    implementation("com.expediagroup:graphql-kotlin-hooks-provider:$graphql_kotlin_version")
+//    graphqlSDL("com.expediagroup:graphql-kotlin-federated-hooks-provider:$graphql_kotlin_version")
 //    implementation("com.expediagroup:graphql-kotlin-dataloader:$graphql_kotlin_version")
 
 
     testImplementation("io.ktor:ktor-server-tests-jvm:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+}
+
+tasks {
+    graphqlGenerateSDL {
+        schemaFile.set(File(projectDir, "schema.graphql"))
+    }
 }
