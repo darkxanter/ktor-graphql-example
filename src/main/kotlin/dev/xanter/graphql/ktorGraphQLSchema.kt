@@ -20,19 +20,28 @@ private val config = SchemaGeneratorConfig(
     hooks = FlowSubscriptionSchemaGeneratorHooks(),
 )
 private val queries = listOf(
-    TopLevelObject(HelloQueryService()),
+    HelloQueryService(),
 //    TopLevelObject(BookQueryService()),
 //    TopLevelObject(CourseQueryService()),
 //    TopLevelObject(UniversityQueryService())
 )
-private val mutations = listOf(TopLevelObject(LoginMutationService()))
+private val mutations = listOf(
+    LoginMutationService()
+)
 private val subscriptions = listOf(
-    TopLevelObject(SimpleSubscription())
+    SimpleSubscription()
 )
 
-private val graphQLSchema = toSchema(config, queries, mutations, subscriptions)
+private val graphQLSchema = toSchema(
+    config,
+    queries.toTopLevelObjects(),
+    mutations.toTopLevelObjects(),
+    subscriptions.toTopLevelObjects(),
+)
 
 fun getGraphQLObject(): GraphQL = GraphQL
     .newGraphQL(graphQLSchema)
     .subscriptionExecutionStrategy(FlowSubscriptionExecutionStrategy())
     .build()
+
+private fun List<Any>.toTopLevelObjects() = map { TopLevelObject(it) }

@@ -46,8 +46,6 @@ type Subscription {
   counter(limit: Int): Int!
   "Returns a random number every second, errors if even"
   counterWithError: Int!
-  "Returns stream of values"
-  flow: Int!
   "Returns stream of errors"
   flowOfErrors: String
   "Returns a single value"
