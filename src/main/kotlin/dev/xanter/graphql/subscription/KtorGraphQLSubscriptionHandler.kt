@@ -13,9 +13,6 @@ import graphql.GraphQL
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.reactive.asFlow
-import org.reactivestreams.Publisher
-import reactor.core.publisher.Flux
 
 /**
  * Default Ktor implementation of GraphQL subscription handler.
@@ -30,8 +27,7 @@ open class KtorGraphQLSubscriptionHandler(
         val input = graphQLRequest.toExecutionInput(graphQLContext, dataLoaderRegistry, graphQLContextMap)
 
         return graphQL.execute(input)
-            .getData<Flux<ExecutionResult>>()
-            .asFlow()
+            .getData<Flow<ExecutionResult>>()
             .map { result -> result.toGraphQLResponse() }
             .catch { throwable ->
                 val error = throwable.toGraphQLError()

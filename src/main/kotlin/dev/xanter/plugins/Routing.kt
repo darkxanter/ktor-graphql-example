@@ -1,16 +1,22 @@
 package dev.xanter.plugins
 
-import io.ktor.server.routing.*
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.response.*
-import io.ktor.server.request.*
+import io.ktor.server.application.Application
 
 fun Application.configureRouting() {
 
-    routing {
-        get("/") {
-            call.respondText("Hello World!")
-        }
-    }
+//    routing {
+//        get("/") {
+//            call.respondHtml {
+//                head {
+//                    title("Ktor GraphQL Example")
+//                }
+//
+//                body {
+//                    p {
+//                        +"Playground"
+//                    }
+//                }
+//            }
+//        }
+//    }
 }

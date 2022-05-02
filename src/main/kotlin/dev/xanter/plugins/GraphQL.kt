@@ -38,7 +38,7 @@ fun Application.configureGraphQL() {
             KtorServer().handle(this.call)
         }
 
-        get("playground") {
+        get("/") {
             this.call.respondText(buildPlaygroundHtml("graphql", "subscriptions"), ContentType.Text.Html)
         }
 

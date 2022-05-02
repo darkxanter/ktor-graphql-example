@@ -2,6 +2,7 @@ package dev.xanter.graphql
 
 import com.expediagroup.graphql.generator.SchemaGeneratorConfig
 import com.expediagroup.graphql.generator.TopLevelObject
+import com.expediagroup.graphql.generator.execution.FlowSubscriptionExecutionStrategy
 import com.expediagroup.graphql.generator.hooks.FlowSubscriptionSchemaGeneratorHooks
 import com.expediagroup.graphql.generator.toSchema
 import dev.xanter.schema.HelloQueryService
@@ -31,4 +32,7 @@ private val subscriptions = listOf(
 
 private val graphQLSchema = toSchema(config, queries, mutations, subscriptions)
 
-fun getGraphQLObject(): GraphQL = GraphQL.newGraphQL(graphQLSchema).build()
+fun getGraphQLObject(): GraphQL = GraphQL
+    .newGraphQL(graphQLSchema)
+    .subscriptionExecutionStrategy(FlowSubscriptionExecutionStrategy())
+    .build()

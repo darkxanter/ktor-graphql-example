@@ -5,48 +5,45 @@ import com.expediagroup.graphql.server.operations.Subscription
 import graphql.GraphqlErrorException
 import graphql.execution.DataFetcherResult
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.reactive.asPublisher
-import kotlinx.coroutines.reactor.asFlux
-import org.reactivestreams.Publisher
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import reactor.core.publisher.Flux
-import java.time.Duration
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 class SimpleSubscription : Subscription {
 
-    val logger: Logger = LoggerFactory.getLogger(SimpleSubscription::class.java)
+    private val logger: Logger = LoggerFactory.getLogger(SimpleSubscription::class.java)
+
+    private fun flowTicker(interval: kotlin.time.Duration) = flow {
+        var count = 1
+        while (true) {
+            logger.info("Returning $count from counter")
+            emit(count)
+            count++
+            delay(interval)
+        }
+    }
 
     @GraphQLDescription("Returns a single value")
-    fun singleValueSubscription(): Flux<Int> = Flux.just(1)
+    fun singleValueSubscription(): Flow<Int> = flowOf(1)
 
     @GraphQLDescription("Returns a random number every second")
-    fun counter(limit: Int? = null): Flux<Int> {
-
-        val flow = flow {
-            var count = 1
-            while (true) {
-                logger.info("Returning $count from counter")
-                emit(count)
-                count++
-                delay(1.seconds)
-            }
-        }
-
+    fun counter(limit: Int? = null): Flow<Int> {
+        val flow = flowTicker(1.seconds)
         return if (limit != null) {
             flow.take(limit)
         } else {
             flow
-        }.asFlux()
+        }
     }
 
     @GraphQLDescription("Returns a random number every second, errors if even")
-    fun counterWithError(): Flux<Int> = Flux.interval(Duration.ofSeconds(1))
+    fun counterWithError(): Flow<Int> = flowTicker(1.seconds)
         .map {
             val value = Random.nextInt()
             if (value % 2 == 0) {
@@ -55,17 +52,16 @@ class SimpleSubscription : Subscription {
         }
 
     @GraphQLDescription("Returns one value then an error")
-    fun singleValueThenError(): Flux<Int> = Flux.just(1, 2)
+    fun singleValueThenError(): Flow<Int> = flowOf(1, 2)
         .map { if (it == 2) throw Exception("Second value") else it }
 
     @GraphQLDescription("Returns stream of errors")
-    fun flowOfErrors(): Publisher<DataFetcherResult<String?>> {
+    fun flowOfErrors(): Flow<DataFetcherResult<String?>> {
         val dfr: DataFetcherResult<String?> = DataFetcherResult.newResult<String?>()
             .data(null)
             .error(GraphqlErrorException.newErrorException().cause(Exception("error thrown")).build())
             .build()
-
-        return flowOf(dfr, dfr).asPublisher()
+        return flowOf(dfr, dfr)
     }
 
 //    @GraphQLDescription("Returns a value from the subscription context")
