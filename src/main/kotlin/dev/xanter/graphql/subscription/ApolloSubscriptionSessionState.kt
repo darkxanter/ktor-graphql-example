@@ -1,21 +1,26 @@
+@file:Suppress("DEPRECATION")
+
 package dev.xanter.graphql.subscription
 
 import com.expediagroup.graphql.generator.execution.GraphQLContext
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.close
-import org.reactivestreams.Subscription
-import reactor.core.publisher.Mono
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onCompletion
 import java.util.concurrent.ConcurrentHashMap
 
 internal class ApolloSubscriptionSessionState {
 
     // Sessions are saved by web socket session id
     @Suppress("MemberVisibilityCanBePrivate")
-    internal val activeKeepAliveSessions = ConcurrentHashMap<WebSocketSession, Subscription>()
+    internal val activeKeepAliveSessions = ConcurrentHashMap<WebSocketSession, Job>()
 
     // Operations are saved by web socket session id, then operation id
     @Suppress("MemberVisibilityCanBePrivate")
-    internal val activeOperations = ConcurrentHashMap<WebSocketSession, ConcurrentHashMap<String, Subscription>>()
+    internal val activeOperations = ConcurrentHashMap<WebSocketSession, ConcurrentHashMap<String, Job>>()
 
     // The context is saved by web socket session id
     private val cachedContext = ConcurrentHashMap<WebSocketSession, GraphQLContext>()
@@ -60,7 +65,7 @@ internal class ApolloSubscriptionSessionState {
      * This will override values without cancelling the subscription, so it is the responsibility of the consumer to cancel.
      * These messages will be stopped on [terminateSession].
      */
-    fun saveKeepAliveSubscription(session: WebSocketSession, subscription: Subscription) {
+    fun saveKeepAliveSubscription(session: WebSocketSession, subscription: Job) {
         activeKeepAliveSessions[session] = subscription
     }
 
@@ -69,10 +74,11 @@ internal class ApolloSubscriptionSessionState {
      * This will override values without cancelling the subscription, so it is the responsibility of the consumer to cancel.
      * These messages will be stopped on [stopOperation].
      */
-    fun saveOperation(session: WebSocketSession, operationMessage: SubscriptionOperationMessage, subscription: Subscription) {
+    fun saveOperation(session: WebSocketSession, operationMessage: SubscriptionOperationMessage, subscription: Job) {
         val id = operationMessage.id
         if (id != null) {
-            val operationsForSession: ConcurrentHashMap<String, Subscription> = activeOperations.getOrPut(session) { ConcurrentHashMap() }
+            val operationsForSession: ConcurrentHashMap<String, Job> =
+                activeOperations.getOrPut(session) { ConcurrentHashMap() }
             operationsForSession[id] = subscription
         }
     }
@@ -81,26 +87,37 @@ internal class ApolloSubscriptionSessionState {
      * Send the [SubscriptionOperationMessage.ServerMessages.GQL_COMPLETE] message.
      * This can happen when the publisher finishes or if the client manually sends the stop message.
      */
-    fun completeOperation(session: WebSocketSession, operationMessage: SubscriptionOperationMessage): Mono<SubscriptionOperationMessage> {
+    fun completeOperation(
+        session: WebSocketSession,
+        operationMessage: SubscriptionOperationMessage
+    ): Flow<SubscriptionOperationMessage> {
         return getCompleteMessage(operationMessage)
-            .doFinally { removeActiveOperation(session, operationMessage.id, cancelSubscription = false) }
+            .onCompletion { removeActiveOperation(session, operationMessage.id, cancelSubscription = false) }
     }
 
     /**
      * Stop the subscription sending data and send the [SubscriptionOperationMessage.ServerMessages.GQL_COMPLETE] message.
      * Does NOT terminate the session.
      */
-    fun stopOperation(session: WebSocketSession, operationMessage: SubscriptionOperationMessage): Mono<SubscriptionOperationMessage> {
+    fun stopOperation(
+        session: WebSocketSession,
+        operationMessage: SubscriptionOperationMessage
+    ): Flow<SubscriptionOperationMessage> {
         return getCompleteMessage(operationMessage)
-            .doFinally { removeActiveOperation(session, operationMessage.id, cancelSubscription = true) }
+            .onCompletion { removeActiveOperation(session, operationMessage.id, cancelSubscription = true) }
     }
 
-    private fun getCompleteMessage(operationMessage: SubscriptionOperationMessage): Mono<SubscriptionOperationMessage> {
+    private fun getCompleteMessage(operationMessage: SubscriptionOperationMessage): Flow<SubscriptionOperationMessage> {
         val id = operationMessage.id
         if (id != null) {
-            return Mono.just(SubscriptionOperationMessage(type = SubscriptionOperationMessage.ServerMessages.GQL_COMPLETE.type, id = id))
+            return flowOf(
+                SubscriptionOperationMessage(
+                    type = SubscriptionOperationMessage.ServerMessages.GQL_COMPLETE.type,
+                    id = id
+                )
+            )
         }
-        return Mono.empty()
+        return emptyFlow()
     }
 
     /**

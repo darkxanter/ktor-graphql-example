@@ -5,17 +5,24 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
 import dev.xanter.graphql.GraphQLConfigurationProperties
-import io.ktor.websocket.WebSocketSession
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.reactor.asFlux
-import org.slf4j.LoggerFactory
-import reactor.core.publisher.Flux
-import java.time.Duration
 import dev.xanter.graphql.subscription.SubscriptionOperationMessage.ClientMessages
 import dev.xanter.graphql.subscription.SubscriptionOperationMessage.ServerMessages
-import reactor.core.publisher.Mono
-import reactor.kotlin.core.publisher.toFlux
+import io.ktor.websocket.WebSocketSession
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.job
+import kotlinx.coroutines.runBlocking
+import org.slf4j.LoggerFactory
 
 /**
  * Implementation of the `graphql-ws` protocol defined by Apollo
@@ -31,13 +38,14 @@ class ApolloSubscriptionProtocolHandler(
     private val sessionState = ApolloSubscriptionSessionState()
     private val logger = LoggerFactory.getLogger(ApolloSubscriptionProtocolHandler::class.java)
     private val keepAliveMessage = SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_KEEP_ALIVE.type)
-    private val basicConnectionErrorMessage = SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_ERROR.type)
+    private val basicConnectionErrorMessage =
+        SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_ERROR.type)
     private val acknowledgeMessage = SubscriptionOperationMessage(ServerMessages.GQL_CONNECTION_ACK.type)
 
     @ExperimentalCoroutinesApi
     @Suppress("Detekt.TooGenericExceptionCaught")
-    suspend fun handle(payload: String, session: WebSocketSession): Flux<SubscriptionOperationMessage> {
-        val operationMessage = convertToMessageOrNull(payload) ?: return Flux.just(basicConnectionErrorMessage)
+    suspend fun handle(payload: String, session: WebSocketSession): Flow<SubscriptionOperationMessage> {
+        val operationMessage = convertToMessageOrNull(payload) ?: return flowOf(basicConnectionErrorMessage)
         logger.debug("GraphQL subscription client, session=$session operationMessage=$operationMessage")
 
         return try {
@@ -67,22 +75,26 @@ class ApolloSubscriptionProtocolHandler(
      * If the keep alive configuration is set, send a message back to client at every interval until the session is terminated.
      * Otherwise just return empty flux to append to the acknowledge message.
      */
-    private fun getKeepAliveFlux(session: WebSocketSession): Flux<SubscriptionOperationMessage> {
+    private fun getKeepAliveFlux(session: WebSocketSession): Flow<SubscriptionOperationMessage> {
         val keepAliveInterval: Long? = config.subscriptions.keepAliveInterval
         if (keepAliveInterval != null) {
-            return Flux.interval(Duration.ofMillis(keepAliveInterval))
-                .map { keepAliveMessage }
-                .doOnSubscribe { sessionState.saveKeepAliveSubscription(session, it) }
+            return flow {
+                while (true) {
+                    emit(keepAliveMessage)
+                    delay(keepAliveInterval)
+                }
+            }.onStart {
+                sessionState.saveKeepAliveSubscription(session, currentCoroutineContext().job)
+            }
         }
-
-        return Flux.empty()
+        return emptyFlow()
     }
 
     @Suppress("Detekt.TooGenericExceptionCaught")
     private fun startSubscription(
         operationMessage: SubscriptionOperationMessage,
         session: WebSocketSession
-    ): Flux<SubscriptionOperationMessage> {
+    ): Flow<SubscriptionOperationMessage> {
         val context = sessionState.getContext(session)
         val graphQLContext = sessionState.getGraphQLContext(session)
 
@@ -91,12 +103,12 @@ class ApolloSubscriptionProtocolHandler(
 
         if (operationMessage.id == null) {
             logger.error("GraphQL subscription operation id is required")
-            return Flux.just(basicConnectionErrorMessage)
+            return flowOf(basicConnectionErrorMessage)
         }
 
         if (sessionState.doesOperationExist(session, operationMessage)) {
             logger.info("Already subscribed to operation ${operationMessage.id} for session ${session}")
-            return Flux.empty()
+            return emptyFlow()
         }
 
         val payload = operationMessage.payload
@@ -104,36 +116,62 @@ class ApolloSubscriptionProtocolHandler(
         if (payload == null) {
             logger.error("GraphQL subscription payload was null instead of a GraphQLRequest object")
             sessionState.stopOperation(session, operationMessage)
-            return Flux.just(SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_ERROR.type, id = operationMessage.id))
+            return flowOf(
+                SubscriptionOperationMessage(
+                    type = ServerMessages.GQL_CONNECTION_ERROR.type,
+                    id = operationMessage.id
+                )
+            )
         }
 
         try {
             val request = objectMapper.convertValue<GraphQLRequest>(payload)
             return subscriptionHandler.executeSubscription(request, context, graphQLContext)
-                .asFlux()
                 .map {
                     if (it.errors?.isNotEmpty() == true) {
-                        SubscriptionOperationMessage(type = ServerMessages.GQL_ERROR.type, id = operationMessage.id, payload = it)
+                        SubscriptionOperationMessage(
+                            type = ServerMessages.GQL_ERROR.type,
+                            id = operationMessage.id,
+                            payload = it
+                        )
                     } else {
-                        SubscriptionOperationMessage(type = ServerMessages.GQL_DATA.type, id = operationMessage.id, payload = it)
+                        SubscriptionOperationMessage(
+                            type = ServerMessages.GQL_DATA.type,
+                            id = operationMessage.id,
+                            payload = it
+                        )
                     }
                 }
-                .concatWith(onComplete(operationMessage, session).toFlux())
-                .doOnSubscribe { sessionState.saveOperation(session, operationMessage, it) }
+                .onStart {
+                    val job = currentCoroutineContext().job
+                    sessionState.saveOperation(session, operationMessage, job)
+                }
+                .onCompletion { error ->
+                    if (error == null)
+                        emitAll(onComplete(operationMessage, session))
+                }
         } catch (exception: Exception) {
             logger.error("Error running graphql subscription", exception)
             // Do not terminate the session, just stop the operation messages
             sessionState.stopOperation(session, operationMessage)
-            return Flux.just(SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_ERROR.type, id = operationMessage.id))
+            return flowOf(
+                SubscriptionOperationMessage(
+                    type = ServerMessages.GQL_CONNECTION_ERROR.type,
+                    id = operationMessage.id
+                )
+            )
         }
     }
 
-    private fun onInit(operationMessage: SubscriptionOperationMessage, session: WebSocketSession): Flux<SubscriptionOperationMessage> {
+    private fun onInit(
+        operationMessage: SubscriptionOperationMessage,
+        session: WebSocketSession
+    ): Flow<SubscriptionOperationMessage> {
         saveContext(operationMessage, session)
-        val acknowledgeMessage = Mono.just(acknowledgeMessage)
+        val acknowledgeMessage = flowOf(acknowledgeMessage)
         val keepAliveFlux = getKeepAliveFlux(session)
-        return acknowledgeMessage.concatWith(keepAliveFlux)
-            .onErrorReturn(getConnectionErrorMessage(operationMessage))
+        return acknowledgeMessage.onCompletion { if (it == null) emitAll(keepAliveFlux) }
+            .catch { emit(getConnectionErrorMessage(operationMessage)) }
     }
 
     /**
@@ -145,7 +183,8 @@ class ApolloSubscriptionProtocolHandler(
             val context = contextFactory.generateContext(session)
             val graphQLContext = contextFactory.generateContextMap(session)
             val onConnectContext = subscriptionHooks.onConnect(connectionParams, session, context)
-            val onConnectGraphQLContext = subscriptionHooks.onConnectWithContext(connectionParams, session, graphQLContext)
+            val onConnectGraphQLContext =
+                subscriptionHooks.onConnectWithContext(connectionParams, session, graphQLContext)
             sessionState.saveContext(session, onConnectContext)
             sessionState.saveContextMap(session, onConnectGraphQLContext)
         }
@@ -157,7 +196,7 @@ class ApolloSubscriptionProtocolHandler(
     private fun onComplete(
         operationMessage: SubscriptionOperationMessage,
         session: WebSocketSession
-    ): Mono<SubscriptionOperationMessage> {
+    ): Flow<SubscriptionOperationMessage> {
         subscriptionHooks.onOperationComplete(session)
         return sessionState.completeOperation(session, operationMessage)
     }
@@ -168,26 +207,29 @@ class ApolloSubscriptionProtocolHandler(
     private fun onStop(
         operationMessage: SubscriptionOperationMessage,
         session: WebSocketSession
-    ): Flux<SubscriptionOperationMessage> {
+    ): Flow<SubscriptionOperationMessage> {
         subscriptionHooks.onOperationComplete(session)
-        return sessionState.stopOperation(session, operationMessage).toFlux()
+        return sessionState.stopOperation(session, operationMessage)
     }
 
-    private suspend fun onDisconnect(session: WebSocketSession): Flux<SubscriptionOperationMessage> {
+    private suspend fun onDisconnect(session: WebSocketSession): Flow<SubscriptionOperationMessage> {
         subscriptionHooks.onDisconnect(session)
         sessionState.terminateSession(session)
-        return Flux.empty()
+        return emptyFlow()
     }
 
-    private fun onUnknownOperation(operationMessage: SubscriptionOperationMessage, session: WebSocketSession): Flux<SubscriptionOperationMessage> {
+    private fun onUnknownOperation(
+        operationMessage: SubscriptionOperationMessage,
+        session: WebSocketSession
+    ): Flow<SubscriptionOperationMessage> {
         logger.error("Unknown subscription operation $operationMessage")
         sessionState.stopOperation(session, operationMessage)
-        return Flux.just(getConnectionErrorMessage(operationMessage))
+        return flowOf(getConnectionErrorMessage(operationMessage))
     }
 
-    private fun onException(exception: Exception): Flux<SubscriptionOperationMessage> {
+    private fun onException(exception: Exception): Flow<SubscriptionOperationMessage> {
         logger.error("Error parsing the subscription message", exception)
-        return Flux.just(basicConnectionErrorMessage)
+        return flowOf(basicConnectionErrorMessage)
     }
 
     private fun getConnectionErrorMessage(operationMessage: SubscriptionOperationMessage): SubscriptionOperationMessage {

@@ -58,7 +58,7 @@ fun Application.configureGraphQL() {
                         val text = frame.readText()
                         application.log.debug("subscriptions request $text")
                         launch(Dispatchers.IO) {
-                            subscriptionProtocolHandler.handle(text, this@webSocket).asFlow().collect {
+                            subscriptionProtocolHandler.handle(text, this@webSocket).collect {
                                 val json = mapper.writeValueAsString(it)
                                 application.log.debug("subscriptions response $json")
                                 send(Frame.Text(json))
