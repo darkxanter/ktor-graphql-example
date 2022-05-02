@@ -8,26 +8,16 @@ import dev.xanter.graphql.subscription.ApolloSubscriptionProtocolHandler
 import dev.xanter.graphql.subscription.DefaultKtorSubscriptionGraphQLContextFactory
 import dev.xanter.graphql.subscription.KtorGraphQLSubscriptionHandler
 import dev.xanter.graphql.subscription.SimpleSubscriptionHooks
+import dev.xanter.graphql.subscription.SubscriptionWebSocketHandler
 import io.ktor.http.ContentType
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
-import io.ktor.server.application.log
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.Frame
-import io.ktor.websocket.close
-import io.ktor.websocket.readText
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.reactive.asFlow
 
-@OptIn(ExperimentalCoroutinesApi::class)
 fun Application.configureGraphQL() {
     val subscriptionProtocolHandler = ApolloSubscriptionProtocolHandler(
         GraphQLConfigurationProperties(
@@ -39,8 +29,9 @@ fun Application.configureGraphQL() {
         SimpleSubscriptionHooks(),
     )
 
-    val mapper = jacksonObjectMapper()
-
+    val graphQLSubscriptionHandler = SubscriptionWebSocketHandler(
+        subscriptionProtocolHandler,
+    )
 
     routing {
         post("graphql") {
@@ -51,23 +42,8 @@ fun Application.configureGraphQL() {
             this.call.respondText(buildPlaygroundHtml("graphql", "subscriptions"), ContentType.Text.Html)
         }
 
-        webSocket("/subscriptions", protocol = "graphql-ws") {
-            for (frame in incoming) {
-                when (frame) {
-                    is Frame.Text -> {
-                        val text = frame.readText()
-                        application.log.debug("subscriptions request $text")
-                        launch(Dispatchers.IO) {
-                            subscriptionProtocolHandler.handle(text, this@webSocket).collect {
-                                val json = mapper.writeValueAsString(it)
-                                application.log.debug("subscriptions response $json")
-                                send(Frame.Text(json))
-                            }
-                        }
-                    }
-                    else -> {}
-                }
-            }
+        webSocket("/subscriptions", protocol = graphQLSubscriptionHandler.protocol) {
+            graphQLSubscriptionHandler.handle(this)
         }
     }
 }

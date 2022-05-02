@@ -29,10 +29,11 @@ class SimpleSubscription : Subscription {
     fun counter(limit: Int? = null): Flux<Int> {
 
         val flow = flow {
+            var count = 1
             while (true) {
-                val value = Random.nextInt()
-                logger.info("Returning $value from counter")
-                emit(value)
+                logger.info("Returning $count from counter")
+                emit(count)
+                count++
                 delay(1.seconds)
             }
         }

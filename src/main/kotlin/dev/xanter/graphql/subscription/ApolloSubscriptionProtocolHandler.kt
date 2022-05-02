@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package dev.xanter.graphql.subscription
 
 import com.expediagroup.graphql.server.types.GraphQLRequest
@@ -8,7 +10,6 @@ import dev.xanter.graphql.GraphQLConfigurationProperties
 import dev.xanter.graphql.subscription.SubscriptionOperationMessage.ClientMessages
 import dev.xanter.graphql.subscription.SubscriptionOperationMessage.ServerMessages
 import io.ktor.websocket.WebSocketSession
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -42,7 +43,6 @@ class ApolloSubscriptionProtocolHandler(
         SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_ERROR.type)
     private val acknowledgeMessage = SubscriptionOperationMessage(ServerMessages.GQL_CONNECTION_ACK.type)
 
-    @ExperimentalCoroutinesApi
     @Suppress("Detekt.TooGenericExceptionCaught")
     suspend fun handle(payload: String, session: WebSocketSession): Flow<SubscriptionOperationMessage> {
         val operationMessage = convertToMessageOrNull(payload) ?: return flowOf(basicConnectionErrorMessage)
@@ -73,9 +73,9 @@ class ApolloSubscriptionProtocolHandler(
 
     /**
      * If the keep alive configuration is set, send a message back to client at every interval until the session is terminated.
-     * Otherwise just return empty flux to append to the acknowledge message.
+     * Otherwise, just return empty flow to append to the acknowledgment message.
      */
-    private fun getKeepAliveFlux(session: WebSocketSession): Flow<SubscriptionOperationMessage> {
+    private fun getKeepAliveFlow(session: WebSocketSession): Flow<SubscriptionOperationMessage> {
         val keepAliveInterval: Long? = config.subscriptions.keepAliveInterval
         if (keepAliveInterval != null) {
             return flow {
@@ -107,7 +107,7 @@ class ApolloSubscriptionProtocolHandler(
         }
 
         if (sessionState.doesOperationExist(session, operationMessage)) {
-            logger.info("Already subscribed to operation ${operationMessage.id} for session ${session}")
+            logger.info("Already subscribed to operation ${operationMessage.id} for session $session")
             return emptyFlow()
         }
 
@@ -169,8 +169,8 @@ class ApolloSubscriptionProtocolHandler(
     ): Flow<SubscriptionOperationMessage> {
         saveContext(operationMessage, session)
         val acknowledgeMessage = flowOf(acknowledgeMessage)
-        val keepAliveFlux = getKeepAliveFlux(session)
-        return acknowledgeMessage.onCompletion { if (it == null) emitAll(keepAliveFlux) }
+        val keepAliveFlow = getKeepAliveFlow(session)
+        return acknowledgeMessage.onCompletion { if (it == null) emitAll(keepAliveFlow) }
             .catch { emit(getConnectionErrorMessage(operationMessage)) }
     }
 
