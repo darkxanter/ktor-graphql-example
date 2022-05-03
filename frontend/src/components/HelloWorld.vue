@@ -1,56 +1,49 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useQuery, useSubscription } from '@vue/apollo-composable'
-import gql from 'graphql-tag'
+import { useCounterSubscription } from '../graphql/Counter.generated'
+import { useHelloQuery } from '../graphql/HelloQuery.generated'
+import { useCounter2Subscription } from '../graphql/Counter2.generated'
 
 defineProps<{ msg: string }>()
 
 const count = ref(0)
 
 
-const { result } = useQuery(gql`
-  query TestQuery {
-    hello
-  }
-`)
-
 interface Counter {
   counter: number
 }
 
-const counter1Enabled = ref(false)
-const counter2Enabled = ref(false)
+const counter1Paused = ref(true)
+const counter2Paused = ref(true)
 
-const { result: counter1 } = useSubscription<Counter>(gql`
-  subscription Flow1 {
-    counter
-  }
-`, null, () => ({
-  enabled: counter1Enabled.value
-}))
+const { data: hello, executeQuery } = useHelloQuery()
 
-const { result: counter2 } = useSubscription<Counter>(gql`
-  subscription Flow2 {
-    counter
-  }
-`, null, () => ({ enabled: counter2Enabled.value }))
+const { data: counter1 } = useCounterSubscription({
+  pause: counter1Paused,
+})
 
+const { data: counter2 } = useCounter2Subscription({
+  pause: counter2Paused,
+})
 
-const counter1Start = () => counter1Enabled.value = true
-const counter1Stop = () => counter1Enabled.value = false
+const counter1Start = () => counter1Paused.value = false
+const counter1Stop = () => counter1Paused.value = true
 
-const counter2Start = () => counter2Enabled.value = true
-const counter2Stop = () => counter2Enabled.value = false
+const counter2Start = () => counter2Paused.value = false
+const counter2Stop = () => counter2Paused.value = true
 
 
 </script>
 
 <template>
-  <h1>{{ msg }}</h1>
+  <div>
+    Hello {{ hello?.hello }}
+  </div>
+  <button @click="executeQuery">Refetch</button>
   <div style="display: flex; justify-content: center">
     <div style="width: 200px">
       <div style="text-align: left">Counter1: {{ counter1?.counter }}</div>
-      <div style="text-align: left">Counter2: {{ counter2?.counter }}</div>
+      <div style="text-align: left">Counter2: {{ counter2?.counter2 }}</div>
     </div>
   </div>
   <div>

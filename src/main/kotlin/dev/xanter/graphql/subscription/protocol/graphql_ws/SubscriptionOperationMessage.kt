@@ -1,4 +1,4 @@
-package dev.xanter.graphql.subscription
+package dev.xanter.graphql.subscription.protocol.graphql_ws
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 

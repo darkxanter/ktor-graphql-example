@@ -8,6 +8,7 @@ val graphql_kotlin_version: String by project
 plugins {
     application
     kotlin("jvm") version "1.6.21"
+    id("org.jetbrains.dokka") version "1.6.21"
     id("com.expediagroup.graphql") version "5.3.2"
 }
 

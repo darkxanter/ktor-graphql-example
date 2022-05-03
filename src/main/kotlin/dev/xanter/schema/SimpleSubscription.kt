@@ -42,6 +42,16 @@ class SimpleSubscription : Subscription {
         }
     }
 
+    @GraphQLDescription("Returns a random number every second")
+    fun counter2(limit: Int? = null): Flow<Int> {
+        val flow = flowTicker(1.seconds)
+        return if (limit != null) {
+            flow.take(limit)
+        } else {
+            flow
+        }
+    }
+
     @GraphQLDescription("Returns a random number every second, errors if even")
     fun counterWithError(): Flow<Int> = flowTicker(1.seconds)
         .map {

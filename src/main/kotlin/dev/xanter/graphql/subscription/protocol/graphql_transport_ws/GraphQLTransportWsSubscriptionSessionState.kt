@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package dev.xanter.graphql.subscription
+package dev.xanter.graphql.subscription.protocol.graphql_transport_ws
 
 import com.expediagroup.graphql.generator.execution.GraphQLContext
 import io.ktor.websocket.WebSocketSession
@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onCompletion
 import java.util.concurrent.ConcurrentHashMap
 
-internal class ApolloSubscriptionSessionState {
+internal class GraphQLTransportWsSubscriptionSessionState {
 
     // Sessions are saved by web socket session id
     @Suppress("MemberVisibilityCanBePrivate")
@@ -84,7 +84,7 @@ internal class ApolloSubscriptionSessionState {
     }
 
     /**
-     * Send the [SubscriptionOperationMessage.ServerMessages.GQL_COMPLETE] message.
+     * Send the [SubscriptionOperationMessage.Complete] message.
      * This can happen when the publisher finishes or if the client manually sends the stop message.
      */
     fun completeOperation(
@@ -92,11 +92,11 @@ internal class ApolloSubscriptionSessionState {
         operationMessage: SubscriptionOperationMessage
     ): Flow<SubscriptionOperationMessage> {
         return getCompleteMessage(operationMessage)
-            .onCompletion { removeActiveOperation(session, operationMessage.id, cancelSubscription = false) }
+            .onCompletion { removeActiveOperation(session, operationMessage.id) }
     }
 
     /**
-     * Stop the subscription sending data and send the [SubscriptionOperationMessage.ServerMessages.GQL_COMPLETE] message.
+     * Stop the subscription sending data and send the [SubscriptionOperationMessage.Complete] message.
      * Does NOT terminate the session.
      */
     fun stopOperation(
@@ -104,18 +104,13 @@ internal class ApolloSubscriptionSessionState {
         operationMessage: SubscriptionOperationMessage
     ): Flow<SubscriptionOperationMessage> {
         return getCompleteMessage(operationMessage)
-            .onCompletion { removeActiveOperation(session, operationMessage.id, cancelSubscription = true) }
+            .onCompletion { removeActiveOperation(session, operationMessage.id) }
     }
 
     private fun getCompleteMessage(operationMessage: SubscriptionOperationMessage): Flow<SubscriptionOperationMessage> {
         val id = operationMessage.id
         if (id != null) {
-            return flowOf(
-                SubscriptionOperationMessage(
-                    type = SubscriptionOperationMessage.ServerMessages.GQL_COMPLETE.type,
-                    id = id
-                )
-            )
+            return flowOf(SubscriptionOperationMessage.Complete(id))
         }
         return emptyFlow()
     }
@@ -123,13 +118,11 @@ internal class ApolloSubscriptionSessionState {
     /**
      * Remove active running subscription from the cache and cancel if needed
      */
-    private fun removeActiveOperation(session: WebSocketSession, id: String?, cancelSubscription: Boolean) {
+    private fun removeActiveOperation(session: WebSocketSession, id: String?) {
         val operationsForSession = activeOperations[session]
         val subscription = operationsForSession?.get(id)
         if (subscription != null) {
-            if (cancelSubscription) {
-                subscription.cancel()
-            }
+            subscription.cancel()
             operationsForSession.remove(id)
             if (operationsForSession.isEmpty()) {
                 activeOperations.remove(session)

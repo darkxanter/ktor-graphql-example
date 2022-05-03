@@ -1,14 +1,19 @@
 @file:Suppress("DEPRECATION")
 
-package dev.xanter.graphql.subscription
+package dev.xanter.graphql.subscription.protocol.graphql_ws
 
 import com.expediagroup.graphql.server.types.GraphQLRequest
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
 import dev.xanter.graphql.GraphQLConfigurationProperties
-import dev.xanter.graphql.subscription.SubscriptionOperationMessage.ClientMessages
-import dev.xanter.graphql.subscription.SubscriptionOperationMessage.ServerMessages
+import dev.xanter.graphql.subscription.ApolloSubscriptionHooks
+import dev.xanter.graphql.subscription.KtorGraphQLSubscriptionHandler
+import dev.xanter.graphql.subscription.KtorSubscriptionGraphQLContextFactory
+import dev.xanter.graphql.subscription.SubscriptionProtocolHandler
+import dev.xanter.graphql.subscription.protocol.graphql_ws.SubscriptionOperationMessage.ClientMessages
+import dev.xanter.graphql.subscription.protocol.graphql_ws.SubscriptionOperationMessage.ServerMessages
+import dev.xanter.graphql.subscription.castToMapOfStringString
 import io.ktor.websocket.WebSocketSession
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -29,22 +34,22 @@ import org.slf4j.LoggerFactory
  * Implementation of the `graphql-ws` protocol defined by Apollo
  * https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
  */
-class ApolloSubscriptionProtocolHandler(
+class GraphQLWsSubscriptionProtocolHandler(
     private val config: GraphQLConfigurationProperties,
     private val contextFactory: KtorSubscriptionGraphQLContextFactory<*>,
     private val subscriptionHandler: KtorGraphQLSubscriptionHandler,
     private val objectMapper: ObjectMapper,
     private val subscriptionHooks: ApolloSubscriptionHooks
-) {
-    private val sessionState = ApolloSubscriptionSessionState()
-    private val logger = LoggerFactory.getLogger(ApolloSubscriptionProtocolHandler::class.java)
+): SubscriptionProtocolHandler<SubscriptionOperationMessage> {
+    private val sessionState = GraphQLWsSubscriptionSessionState()
+    private val logger = LoggerFactory.getLogger(GraphQLWsSubscriptionProtocolHandler::class.java)
     private val keepAliveMessage = SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_KEEP_ALIVE.type)
     private val basicConnectionErrorMessage =
         SubscriptionOperationMessage(type = ServerMessages.GQL_CONNECTION_ERROR.type)
     private val acknowledgeMessage = SubscriptionOperationMessage(ServerMessages.GQL_CONNECTION_ACK.type)
 
     @Suppress("Detekt.TooGenericExceptionCaught")
-    suspend fun handle(payload: String, session: WebSocketSession): Flow<SubscriptionOperationMessage> {
+    override suspend fun handle(payload: String, session: WebSocketSession): Flow<SubscriptionOperationMessage> {
         val operationMessage = convertToMessageOrNull(payload) ?: return flowOf(basicConnectionErrorMessage)
         logger.debug("GraphQL subscription client, session=$session operationMessage=$operationMessage")
 
@@ -163,7 +168,7 @@ class ApolloSubscriptionProtocolHandler(
         }
     }
 
-    private fun onInit(
+    private suspend fun onInit(
         operationMessage: SubscriptionOperationMessage,
         session: WebSocketSession
     ): Flow<SubscriptionOperationMessage> {
@@ -177,23 +182,21 @@ class ApolloSubscriptionProtocolHandler(
     /**
      * Generate the context and save it for all future messages.
      */
-    private fun saveContext(operationMessage: SubscriptionOperationMessage, session: WebSocketSession) {
-        runBlocking {
-            val connectionParams = castToMapOfStringString(operationMessage.payload)
-            val context = contextFactory.generateContext(session)
-            val graphQLContext = contextFactory.generateContextMap(session)
-            val onConnectContext = subscriptionHooks.onConnect(connectionParams, session, context)
-            val onConnectGraphQLContext =
-                subscriptionHooks.onConnectWithContext(connectionParams, session, graphQLContext)
-            sessionState.saveContext(session, onConnectContext)
-            sessionState.saveContextMap(session, onConnectGraphQLContext)
-        }
+    private suspend fun saveContext(operationMessage: SubscriptionOperationMessage, session: WebSocketSession) {
+        val connectionParams = castToMapOfStringString(operationMessage.payload)
+        val context = contextFactory.generateContext(session)
+        val graphQLContext = contextFactory.generateContextMap(session)
+        val onConnectContext = subscriptionHooks.onConnect(connectionParams, session, context)
+        val onConnectGraphQLContext =
+            subscriptionHooks.onConnectWithContext(connectionParams, session, graphQLContext)
+        sessionState.saveContext(session, onConnectContext)
+        sessionState.saveContextMap(session, onConnectGraphQLContext)
     }
 
     /**
      * Called with the publisher has completed on its own.
      */
-    private fun onComplete(
+    private suspend fun onComplete(
         operationMessage: SubscriptionOperationMessage,
         session: WebSocketSession
     ): Flow<SubscriptionOperationMessage> {

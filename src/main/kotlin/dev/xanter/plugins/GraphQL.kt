@@ -4,11 +4,14 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import dev.xanter.graphql.GraphQLConfigurationProperties
 import dev.xanter.graphql.KtorServer
 import dev.xanter.graphql.getGraphQLObject
-import dev.xanter.graphql.subscription.ApolloSubscriptionProtocolHandler
+import dev.xanter.graphql.subscription.protocol.graphql_ws.GraphQLWsSubscriptionProtocolHandler
 import dev.xanter.graphql.subscription.DefaultKtorSubscriptionGraphQLContextFactory
 import dev.xanter.graphql.subscription.KtorGraphQLSubscriptionHandler
 import dev.xanter.graphql.subscription.SimpleSubscriptionHooks
 import dev.xanter.graphql.subscription.SubscriptionWebSocketHandler
+import dev.xanter.graphql.subscription.protocol.graphql_transport_ws.GraphQLTransportWsSubscriptionProtocolHandler
+import dev.xanter.graphql.subscription.protocol.graphql_transport_ws.GraphQLTransportWsSubscriptionWebSocketHandler
+import dev.xanter.graphql.subscription.protocol.graphql_ws.GraphQLWsSubscriptionWebSocketHandler
 import io.ktor.http.ContentType
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -19,7 +22,7 @@ import io.ktor.server.routing.routing
 import io.ktor.server.websocket.webSocket
 
 fun Application.configureGraphQL() {
-    val subscriptionProtocolHandler = ApolloSubscriptionProtocolHandler(
+    val graphQLWsSubscriptionProtocolHandler = GraphQLWsSubscriptionProtocolHandler(
         GraphQLConfigurationProperties(
             packages = listOf("dev.xanter")
         ),
@@ -29,8 +32,18 @@ fun Application.configureGraphQL() {
         SimpleSubscriptionHooks(),
     )
 
-    val graphQLSubscriptionHandler = SubscriptionWebSocketHandler(
-        subscriptionProtocolHandler,
+    val graphQLWsSubscriptionHandler = GraphQLWsSubscriptionWebSocketHandler(
+        graphQLWsSubscriptionProtocolHandler,
+    )
+
+    val graphQLTransportWsSubscriptionProtocolHandler = GraphQLTransportWsSubscriptionProtocolHandler(
+        DefaultKtorSubscriptionGraphQLContextFactory(),
+        KtorGraphQLSubscriptionHandler(getGraphQLObject()),
+        jacksonObjectMapper(),
+    )
+
+    val graphQLTransportWsSubscriptionHandler = GraphQLTransportWsSubscriptionWebSocketHandler(
+        graphQLTransportWsSubscriptionProtocolHandler,
     )
 
     routing {
@@ -42,8 +55,12 @@ fun Application.configureGraphQL() {
             this.call.respondText(buildPlaygroundHtml("graphql", "subscriptions"), ContentType.Text.Html)
         }
 
-        webSocket("/subscriptions", protocol = graphQLSubscriptionHandler.protocol) {
-            graphQLSubscriptionHandler.handle(this)
+        webSocket("/subscriptions", protocol = graphQLWsSubscriptionHandler.protocol) {
+            graphQLWsSubscriptionHandler.handle(this)
+        }
+
+        webSocket("/subscriptions", protocol = graphQLTransportWsSubscriptionHandler.protocol) {
+            graphQLTransportWsSubscriptionHandler.handle(this)
         }
     }
 }

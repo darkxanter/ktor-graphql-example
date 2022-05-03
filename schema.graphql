@@ -44,6 +44,8 @@ type Query {
 type Subscription {
   "Returns a random number every second"
   counter(limit: Int): Int!
+  "Returns a random number every second"
+  counter2(limit: Int): Int!
   "Returns a random number every second, errors if even"
   counterWithError: Int!
   "Returns stream of errors"

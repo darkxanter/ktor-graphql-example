@@ -1,6 +1,7 @@
 package dev.xanter.graphql.subscription
 
 import com.expediagroup.graphql.generator.execution.GraphQLContext
+import dev.xanter.graphql.subscription.protocol.graphql_ws.SubscriptionOperationMessage
 import io.ktor.websocket.WebSocketSession
 
 /**
