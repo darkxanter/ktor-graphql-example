@@ -1,74 +1,43 @@
 package dev.xanter.plugins
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import dev.xanter.graphql.GraphQLConfigurationProperties
-import dev.xanter.graphql.KtorServer
-import dev.xanter.graphql.getGraphQLObject
-import dev.xanter.graphql.subscription.protocol.graphql_ws.GraphQLWsSubscriptionProtocolHandler
-import dev.xanter.graphql.subscription.DefaultKtorSubscriptionGraphQLContextFactory
-import dev.xanter.graphql.subscription.KtorGraphQLSubscriptionHandler
-import dev.xanter.graphql.subscription.SimpleSubscriptionHooks
-import dev.xanter.graphql.subscription.SubscriptionWebSocketHandler
-import dev.xanter.graphql.subscription.protocol.graphql_transport_ws.GraphQLTransportWsSubscriptionProtocolHandler
-import dev.xanter.graphql.subscription.protocol.graphql_transport_ws.GraphQLTransportWsSubscriptionWebSocketHandler
-import dev.xanter.graphql.subscription.protocol.graphql_ws.GraphQLWsSubscriptionWebSocketHandler
-import io.ktor.http.ContentType
+import com.github.darkxanter.graphql.GraphQLKotlin
+import dev.xanter.graphql.AuthorizedContext
+import dev.xanter.models.User
+import dev.xanter.graphql.schema.ArticleQueryService
+import dev.xanter.graphql.schema.HelloQueryService
+import dev.xanter.graphql.schema.LoginMutationService
+import dev.xanter.graphql.schema.SimpleSubscription
 import io.ktor.server.application.Application
-import io.ktor.server.application.call
-import io.ktor.server.response.respondText
-import io.ktor.server.routing.get
-import io.ktor.server.routing.post
-import io.ktor.server.routing.routing
-import io.ktor.server.websocket.webSocket
+import io.ktor.server.application.install
 
 fun Application.configureGraphQL() {
-    val graphQLWsSubscriptionProtocolHandler = GraphQLWsSubscriptionProtocolHandler(
-        GraphQLConfigurationProperties(
-            packages = listOf("dev.xanter")
-        ),
-        DefaultKtorSubscriptionGraphQLContextFactory(),
-        KtorGraphQLSubscriptionHandler(getGraphQLObject()),
-        jacksonObjectMapper(),
-        SimpleSubscriptionHooks(),
-    )
+    install(GraphQLKotlin) {
+        queries = listOf(
+            HelloQueryService(),
+            ArticleQueryService(),
+        )
+        mutations = listOf(
+            LoginMutationService()
+        )
 
-    val graphQLWsSubscriptionHandler = GraphQLWsSubscriptionWebSocketHandler(
-        graphQLWsSubscriptionProtocolHandler,
-    )
+        subscriptions = listOf(
+            SimpleSubscription()
+        )
 
-    val graphQLTransportWsSubscriptionProtocolHandler = GraphQLTransportWsSubscriptionProtocolHandler(
-        DefaultKtorSubscriptionGraphQLContextFactory(),
-        KtorGraphQLSubscriptionHandler(getGraphQLObject()),
-        jacksonObjectMapper(),
-    )
-
-    val graphQLTransportWsSubscriptionHandler = GraphQLTransportWsSubscriptionWebSocketHandler(
-        graphQLTransportWsSubscriptionProtocolHandler,
-    )
-
-    routing {
-        post("graphql") {
-            KtorServer().handle(this.call)
+        schemaGeneratorConfig {
+            supportedPackages = listOf("dev.xanter")
         }
 
-        get("/") {
-            this.call.respondText(buildPlaygroundHtml("graphql", "subscriptions"), ContentType.Text.Html)
-        }
-
-        webSocket("/subscriptions", protocol = graphQLWsSubscriptionHandler.protocol) {
-            graphQLWsSubscriptionHandler.handle(this)
-        }
-
-        webSocket("/subscriptions", protocol = graphQLTransportWsSubscriptionHandler.protocol) {
-            graphQLTransportWsSubscriptionHandler.handle(this)
+        generateContextMap { request ->
+            val loggedInUser = User(
+                email = "johndoe@example.com",
+                firstName = "John",
+                lastName = "Doe",
+                universityId = 1,
+            )
+            mapOf(
+                "AuthorizedContext" to AuthorizedContext(loggedInUser)
+            )
         }
     }
 }
-
-
-@Suppress("SameParameterValue")
-private fun buildPlaygroundHtml(graphQLEndpoint: String, subscriptionsEndpoint: String) =
-    Application::class.java.classLoader.getResource("graphql-playground.html")?.readText()
-        ?.replace("\${graphQLEndpoint}", graphQLEndpoint)
-        ?.replace("\${subscriptionsEndpoint}", subscriptionsEndpoint)
-        ?: throw IllegalStateException("graphql-playground.html cannot be found in the classpath")

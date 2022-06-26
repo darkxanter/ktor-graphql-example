@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import { useCounterSubscription } from '../graphql/Counter.generated'
 import { useHelloQuery } from '../graphql/HelloQuery.generated'
-import { useCounter2Subscription } from '../graphql/Counter2.generated'
 
 defineProps<{ msg: string }>()
 
@@ -22,7 +21,7 @@ const { data: counter1 } = useCounterSubscription({
   pause: counter1Paused,
 })
 
-const { data: counter2 } = useCounter2Subscription({
+const { data: counter2 } = useCounterSubscription({
   pause: counter2Paused,
 })
 
@@ -43,7 +42,7 @@ const counter2Stop = () => counter2Paused.value = true
   <div style="display: flex; justify-content: center">
     <div style="width: 200px">
       <div style="text-align: left">Counter1: {{ counter1?.counter }}</div>
-      <div style="text-align: left">Counter2: {{ counter2?.counter2 }}</div>
+      <div style="text-align: left">Counter2: {{ counter2?.counter }}</div>
     </div>
   </div>
   <div>

@@ -1,4 +1,6 @@
-package dev.xanter.schema
+@file:Suppress("unused")
+
+package dev.xanter.graphql.schema
 
 import com.expediagroup.graphql.server.operations.Mutation
 import dev.xanter.models.User
@@ -6,7 +8,7 @@ import dev.xanter.models.User
 data class AuthPayload(val token: String? = null, val user: User? = null)
 
 class LoginMutationService : Mutation {
-    suspend fun login(email: String, password: String, aliasUUID: String?): AuthPayload {
+    fun login(email: String, password: String, aliasUUID: String? = null): AuthPayload {
         val token = "fake-token"
         val user = User(
             email = "fake@site.com",

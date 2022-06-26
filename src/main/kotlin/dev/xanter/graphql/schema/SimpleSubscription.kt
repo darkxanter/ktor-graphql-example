@@ -1,4 +1,6 @@
-package dev.xanter.schema
+@file:Suppress("unused")
+
+package dev.xanter.graphql.schema
 
 import com.expediagroup.graphql.generator.annotations.GraphQLDescription
 import com.expediagroup.graphql.server.operations.Subscription
