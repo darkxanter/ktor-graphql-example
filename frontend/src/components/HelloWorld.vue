@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useCounterSubscription } from '../graphql/Counter.generated'
 import { useHelloQuery } from '../graphql/HelloQuery.generated'
+import { gql, useSubscription } from '@urql/vue'
 
 defineProps<{ msg: string }>()
 
@@ -17,7 +18,12 @@ const counter2Paused = ref(true)
 
 const { data: hello, executeQuery } = useHelloQuery()
 
-const { data: counter1 } = useCounterSubscription({
+const { data: counter1 } = useSubscription({
+  query: gql`
+    subscription Counter {
+      counter
+    }
+  `,
   pause: counter1Paused,
 })
 

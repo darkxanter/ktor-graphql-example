@@ -1,6 +1,6 @@
 @file:Suppress("unused")
 
-package dev.xanter.graphql.schema
+package dev.xanter.usecases
 
 import com.expediagroup.graphql.server.operations.Query
 

@@ -1,12 +1,10 @@
 package dev.xanter.plugins
 
 import com.github.darkxanter.graphql.GraphQLKotlin
-import dev.xanter.graphql.AuthorizedContext
-import dev.xanter.models.User
-import dev.xanter.graphql.schema.ArticleQueryService
-import dev.xanter.graphql.schema.HelloQueryService
-import dev.xanter.graphql.schema.LoginMutationService
-import dev.xanter.graphql.schema.SimpleSubscription
+import dev.xanter.usecases.ArticleQueryService
+import dev.xanter.usecases.CityQueryService
+import dev.xanter.usecases.HelloQueryService
+import dev.xanter.usecases.SimpleSubscription
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 
@@ -15,9 +13,10 @@ fun Application.configureGraphQL() {
         queries = listOf(
             HelloQueryService(),
             ArticleQueryService(),
+            CityQueryService(),
         )
         mutations = listOf(
-            LoginMutationService()
+//            LoginMutationService()
         )
 
         subscriptions = listOf(
@@ -29,15 +28,16 @@ fun Application.configureGraphQL() {
         }
 
         generateContextMap { request ->
-            val loggedInUser = User(
-                email = "johndoe@example.com",
-                firstName = "John",
-                lastName = "Doe",
-                universityId = 1,
-            )
-            mapOf(
-                "AuthorizedContext" to AuthorizedContext(loggedInUser)
-            )
+//            val loggedInUser = User(
+//                email = "johndoe@example.com",
+//                firstName = "John",
+//                lastName = "Doe",
+//                universityId = 1,
+//            )
+//            mapOf(
+//                "AuthorizedContext" to AuthorizedContext(loggedInUser)
+//            )
+            emptyMap()
         }
     }
 }

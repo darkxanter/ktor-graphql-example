@@ -13,6 +13,7 @@ import App from './App.vue'
 
 const wsClient = createWSClient({
   url: `ws://${window.location.host}/subscriptions`,
+
   shouldRetry: () => true,
 })
 

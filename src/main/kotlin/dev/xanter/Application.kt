@@ -5,6 +5,8 @@ import io.ktor.server.netty.*
 import dev.xanter.plugins.*
 
 fun main() {
+    initDatabase()
+
     embeddedServer(Netty, port = 4000, host = "0.0.0.0") {
         configureRouting()
         configureSecurity()

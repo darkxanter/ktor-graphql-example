@@ -1,6 +1,6 @@
 @file:Suppress("unused")
 
-package dev.xanter.graphql.schema
+package dev.xanter.usecases
 
 import com.expediagroup.graphql.server.operations.Query
 import graphql.language.Field
@@ -41,15 +41,3 @@ data class ArticleComment(
     val username: String,
     val content: String,
 )
-
-private fun DataFetchingEnvironment.selectedFields(): Map<String, List<Field>> = field.selectedFields()
-
-private fun Field.selectedFields(): Map<String, List<Field>> {
-    return selectionSet.getSelectionsOfType(Field::class.java).selectedFields()
-}
-
-private fun List<Field>.selectedFields(): Map<String, List<Field>> {
-    return associate {
-        it.name to (it.selectionSet?.getSelectionsOfType(Field::class.java) ?: emptyList())
-    }
-}

@@ -5,6 +5,7 @@ val kotlin_version: String by project
 val logback_version: String by project
 val graphql_kotlin_version: String by project
 val graphql_kotlin_plugin_version: String by project
+val exposed_version: String by project
 
 plugins {
     application
@@ -47,6 +48,12 @@ dependencies {
 
     implementation("ch.qos.logback:logback-classic:$logback_version")
 
+    implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
+    implementation("org.jetbrains.exposed:exposed-dao:$exposed_version")
+    implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
+
+    runtimeOnly("org.xerial:sqlite-jdbc:3.36.0.3")
+
     implementation("io.github.darkxanter.graphql", "graphql-kotlin-ktor-plugin", graphql_kotlin_plugin_version)
 
     implementation("com.expediagroup:graphql-kotlin-server:$graphql_kotlin_version")
@@ -54,6 +61,8 @@ dependencies {
     implementation("com.expediagroup:graphql-kotlin-hooks-provider:$graphql_kotlin_version")
 //    graphqlSDL("com.expediagroup:graphql-kotlin-federated-hooks-provider:$graphql_kotlin_version")
 //    implementation("com.expediagroup:graphql-kotlin-dataloader:$graphql_kotlin_version")
+
+
 
     testImplementation("io.ktor:ktor-server-tests-jvm:$ktor_version")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
