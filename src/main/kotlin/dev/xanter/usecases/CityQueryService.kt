@@ -4,65 +4,86 @@ package dev.xanter.usecases
 
 import com.expediagroup.graphql.generator.annotations.GraphQLDescription
 import com.expediagroup.graphql.server.operations.Query
+import dev.xanter.graphql.Authenticated
 import dev.xanter.models.Cities
-import dev.xanter.models.City
+import dev.xanter.models.CityDao
 import dev.xanter.models.CityDto
+import dev.xanter.models.CityLazyDto
+import dev.xanter.models.CityLoaderDto
+import dev.xanter.models.UserDao
 import dev.xanter.models.UserDto
 import dev.xanter.models.Users
+import dev.xanter.models.toDto
 import graphql.schema.DataFetchingEnvironment
 import org.jetbrains.exposed.dao.with
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 
-class CityQueryService : Query {
-    @GraphQLDescription("List of cities")
-    suspend fun citiesDao(dataFetchingEnvironment: DataFetchingEnvironment): List<CityDto> {
+class Nested {
+    suspend fun cities(dataFetchingEnvironment: DataFetchingEnvironment): List<CityDto> {
         val selectedFields = dataFetchingEnvironment.selectedFields()
-        println("selectedFields $selectedFields")
-
         return newSuspendedTransaction {
-            val cities = City.all()
+            val cities = selectedFields.whenField(
+                CityDto::users,
+                { CityDao.all().with(CityDao::users) },
+                { CityDao.all() }
+            )
 
             cities.map { city ->
                 CityDto(
                     name = city.name,
-                    users = if (selectedFields.containsKey("users")) {
-                        city.users.map { user ->
-                            UserDto(
-                                name = user.name,
-                                age = user.age,
-                            )
-                        }
-                    } else emptyList(),
+                    users = selectedFields.whenField(
+                        CityDto::users,
+                        { city.users.toDto() },
+                        { emptyList() },
+                    )
                 )
             }
         }
     }
 
-    suspend fun citiesDaoPreload(dataFetchingEnvironment: DataFetchingEnvironment): List<CityDto> {
-        val selectedFields = dataFetchingEnvironment.selectedFields()
-        println("selectedFields $selectedFields")
-
+    suspend fun users(): List<UserDto> {
         return newSuspendedTransaction {
-            val cities = City.all().let {
-                if (selectedFields.containsKey(CityDto::users.name)) {
-                    it.with(City::users)
-                } else {
-                    it
-                }
-            }
+            UserDao.all().toDto()
+        }
+    }
+
+}
+
+
+class CityQueryService : Query {
+    @Authenticated
+    fun nested() = Nested()
+
+    suspend fun citiesDao(dataFetchingEnvironment: DataFetchingEnvironment): List<CityDto> {
+        val selectedFields = dataFetchingEnvironment.selectedFields()
+        return newSuspendedTransaction {
+            val cities = selectedFields.whenField(
+                CityDto::users,
+                { CityDao.all().with(CityDao::users) },
+                { CityDao.all() }
+            )
 
             cities.map { city ->
                 CityDto(
                     name = city.name,
-                    users = if (selectedFields.containsKey("users")) {
-                        city.users.map { user ->
-                            UserDto(
-                                name = user.name,
-                                age = user.age,
-                            )
-                        }
-                    } else emptyList(),
+                    users = selectedFields.whenField(
+                        CityDto::users,
+                        { city.users.toDto() },
+                        { emptyList() },
+                    )
+                )
+            }
+        }
+    }
+
+    suspend fun citiesLazyDto(dataFetchingEnvironment: DataFetchingEnvironment): List<CityLazyDto> {
+        return newSuspendedTransaction {
+            val cities = CityDao.all()
+            cities.map { city ->
+                CityLazyDto(
+                    id = city.id.value,
+                    name = city.name,
                 )
             }
         }
@@ -71,8 +92,6 @@ class CityQueryService : Query {
     @GraphQLDescription("List of cities")
     suspend fun citiesDsl(dataFetchingEnvironment: DataFetchingEnvironment): List<CityDto> {
         val selectedFields = dataFetchingEnvironment.selectedFields()
-        println("selectedFields $selectedFields")
-
         return newSuspendedTransaction {
             val table = if (selectedFields.containsKey(CityDto::users.name)) {
                 Cities.leftJoin(Users)
@@ -88,6 +107,8 @@ class CityQueryService : Query {
                             UserDto(
                                 name = row[Users.name],
                                 age = row[Users.age],
+                                email = row[Users.email],
+                                role = row[Users.role],
                             )
                         )
                     } else emptyList(),

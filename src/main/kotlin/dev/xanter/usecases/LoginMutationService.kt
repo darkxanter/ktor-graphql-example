@@ -2,9 +2,6 @@
 
 package dev.xanter.usecases
 
-import com.expediagroup.graphql.server.operations.Mutation
-import dev.xanter.models.User
-
 //data class AuthPayload(val token: String? = null, val user: User? = null)
 
 //class LoginMutationService : Mutation {

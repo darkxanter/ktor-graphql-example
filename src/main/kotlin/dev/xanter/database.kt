@@ -1,8 +1,9 @@
 package dev.xanter
 
+import dev.xanter.auth.AccessPermission
 import dev.xanter.models.Cities
-import dev.xanter.models.City
-import dev.xanter.models.User
+import dev.xanter.models.CityDao
+import dev.xanter.models.UserDao
 import dev.xanter.models.Users
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
@@ -16,36 +17,42 @@ fun initDatabase() {
     transaction {
         SchemaUtils.create (Cities, Users)
 
-        if (City.all().empty()) {
-            val stPete = City.new {
+        if (CityDao.all().empty()) {
+            val stPete = CityDao.new {
                 name = "St. Petersburg"
             }
 
-            val munich = City.new {
+            val munich = CityDao.new {
                 name = "Munich"
             }
 
-            User.new {
-                name = "a"
+            UserDao.new {
+                name = "John Doe"
                 city = stPete
                 age = 5
+                email = "john@example.com"
+                role = AccessPermission.User
             }
 
-            User.new {
-                name = "b"
+            UserDao.new {
+                name = "Robert"
                 city = stPete
                 age = 27
+                email = "rob@example.com"
+                role = AccessPermission.User
             }
 
-            User.new {
-                name = "c"
+            UserDao.new {
+                name = "Jack"
                 city = munich
                 age = 42
+                email = "jack@example.com"
+                role = AccessPermission.Admin
             }
         }
 
-        println("Cities: ${City.all().joinToString {it.name}}")
+        println("Cities: ${CityDao.all().joinToString {it.name}}")
 //        println("Users in ${stPete.name}: ${stPete.users.joinToString {it.name}}")
-        println("Adults: ${User.find { Users.age greaterEq 18 }.joinToString {it.name}}")
+        println("Adults: ${UserDao.find { Users.age greaterEq 18 }.joinToString {it.name}}")
     }
 }

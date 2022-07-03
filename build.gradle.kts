@@ -52,6 +52,11 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-dao:$exposed_version")
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
 
+    implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlin_version")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.6.3")
+
     runtimeOnly("org.xerial:sqlite-jdbc:3.36.0.3")
 
     implementation("io.github.darkxanter.graphql", "graphql-kotlin-ktor-plugin", graphql_kotlin_plugin_version)
@@ -61,7 +66,6 @@ dependencies {
     implementation("com.expediagroup:graphql-kotlin-hooks-provider:$graphql_kotlin_version")
 //    graphqlSDL("com.expediagroup:graphql-kotlin-federated-hooks-provider:$graphql_kotlin_version")
 //    implementation("com.expediagroup:graphql-kotlin-dataloader:$graphql_kotlin_version")
-
 
 
     testImplementation("io.ktor:ktor-server-tests-jvm:$ktor_version")
